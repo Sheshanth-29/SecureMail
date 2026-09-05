@@ -26,7 +26,7 @@ def lookup_cipher(hex_id):
 
 
 # Load the capture, filtering only your session's port
-cap = pyshark.FileCapture("risk_smtp_capture.pcapng", display_filter="tcp.port==2525")
+cap = pyshark.FileCapture("real_smtp_capture.pcapng", display_filter="tcp.port==2525")
 
 # This will hold our final structured output
 session_data = {
