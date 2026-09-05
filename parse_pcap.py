@@ -26,7 +26,7 @@ def lookup_cipher(hex_id):
 
 
 # Load the capture, filtering only your session's port
-cap = pyshark.FileCapture("real_smtp_capture.pcapng", display_filter="tcp.port==2525")
+cap = pyshark.FileCapture("risk_smtp_capture.pcapng", display_filter="tcp.port==2525")
 
 # This will hold our final structured output
 session_data = {
@@ -85,7 +85,7 @@ for pkt in cap:
 
 cap.close()
 
-# Save to a JSON file so Person B/C can use it directly
+# Save to a JSON file so Person B and C can use it directly
 output_filename = f"{session_data['session_id']}.json"
 with open(output_filename, "w") as f:
     json.dump(session_data, f, indent=2)
