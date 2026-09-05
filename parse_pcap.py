@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import pyshark
 import json
 
@@ -27,11 +26,11 @@ def lookup_cipher(hex_id):
 
 
 # Load the capture, filtering only your session's port
-cap = pyshark.FileCapture("weak_tls_capture.pcapng", display_filter="tcp.port==4433")
+cap = pyshark.FileCapture("real_smtp_capture.pcapng", display_filter="tcp.port==2525")
 
 # This will hold our final structured output
 session_data = {
-    "session_id": "sess_002_weak",
+    "session_id": "sess_001_good",
     "protocol": "TLS-Test",
     "src_port": 4433,
     "sni": None,
@@ -86,37 +85,11 @@ for pkt in cap:
 
 cap.close()
 
+# Save to a JSON file so Person B/C can use it directly
+output_filename = f"{session_data['session_id']}.json"
+with open(output_filename, "w") as f:
+    json.dump(session_data, f, indent=2)
+
+print(f"Saved output to {output_filename}\n")
 print("--- Session TLS Summary (JSON) ---\n")
 print(json.dumps(session_data, indent=2))
-=======
-import pyshark
-
-# Load the capture, filtering only your session's port
-cap = pyshark.FileCapture("real_smtp_capture.pcapng", display_filter="tcp.port==2525")
-
-print("--- Inspecting session for TLS handshake details ---\n")
-
-for pkt in cap:
-    if hasattr(pkt, 'tls'):
-        tls_layer = pkt.tls
-
-        # Client Hello detection
-        if hasattr(tls_layer, 'handshake_type') and tls_layer.handshake_type == '1':
-            print("Found Client Hello:")
-            if hasattr(tls_layer, 'handshake_version'):
-                print(f"  TLS version advertised: {tls_layer.handshake_version}")
-            if hasattr(tls_layer, 'handshake_extensions_server_name'):
-                print(f"  SNI (target server): {tls_layer.handshake_extensions_server_name}")
-            print()
-
-        # Server Hello detection
-        if hasattr(tls_layer, 'handshake_type') and tls_layer.handshake_type == '2':
-            print("Found Server Hello:")
-            if hasattr(tls_layer, 'handshake_version'):
-                print(f"  TLS version negotiated: {tls_layer.handshake_version}")
-            if hasattr(tls_layer, 'handshake_ciphersuite'):
-                print(f"  Cipher suite chosen: {tls_layer.handshake_ciphersuite}")
-            print()
-
-cap.close()
->>>>>>> c040f2bf288c91fbb9eb0722d92e5b97da072cc0

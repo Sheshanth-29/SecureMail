@@ -1,0 +1,15 @@
+{
+  "session_id": "sess_002_weak",
+  "protocol": "TLS-Test",
+  "src_port": 4433,
+  "sni": null,
+  "tls_version_client": "0x0303",
+  "tls_version_server": "0x0303",
+  "cipher_suite_id": "0xc030",
+  "cipher_suite_name": "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+  "cipher_risk": "strong",
+  "signature_algorithm_oid": "1.2.840.113549.1.1.5",
+  "signature_algorithm_name": "sha1WithRSAEncryption",
+  "cert_common_name": "localhost",
+  "cert_risk": "weak - deprecated signature algorithm"
+}
