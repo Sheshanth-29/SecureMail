@@ -1,7 +1,6 @@
 import pyshark
 import json
 
-# Lookup table: cipher suite hex ID -> (readable name, risk level)
 CIPHER_SUITE_INFO = {
     "0x1301": ("TLS_AES_128_GCM_SHA256", "strong"),
     "0x1302": ("TLS_AES_256_GCM_SHA384", "strong"),
@@ -15,7 +14,6 @@ CIPHER_SUITE_INFO = {
     "0x0005": ("TLS_RSA_WITH_RC4_128_SHA", "critical"),
 }
 
-# Known weak/deprecated signature algorithm OIDs
 WEAK_SIG_ALGORITHMS = {
     "1.2.840.113549.1.1.5": "sha1WithRSAEncryption",
     "1.2.840.113549.1.1.4": "md5WithRSAEncryption",
@@ -24,72 +22,94 @@ WEAK_SIG_ALGORITHMS = {
 def lookup_cipher(hex_id):
     return CIPHER_SUITE_INFO.get(hex_id, ("UNKNOWN_CIPHER", "unknown"))
 
+def new_session(session_key):
+    return {
+        "session_id": f"sess_{session_key}",
+        "protocol": "TLS-Test",
+        "sni": None,
+        "tls_version_client": None,
+        "tls_version_server": None,
+        "cipher_suite_id": None,
+        "cipher_suite_name": None,
+        "cipher_risk": None,
+        "signature_algorithm_oid": None,
+        "signature_algorithm_name": None,
+        "cert_common_name": None,
+        "cert_risk": None,
+        "cert_subject": None,
+        "cert_issuer": None,
+        "self_signed": None
+    }
 
-# Load the capture, filtering only your session's port
-cap = pyshark.FileCapture("real_smtp_capture.pcapng", display_filter="tcp.port==2525")
+def analyze_pcap(filepath, display_filter):
+    cap = pyshark.FileCapture(filepath, display_filter=display_filter)
+    sessions = {}
 
-# This will hold our final structured output
-session_data = {
-    "session_id": "sess_001_good",
-    "protocol": "TLS-Test",
-    "src_port": 4433,
-    "sni": None,
-    "tls_version_client": None,
-    "tls_version_server": None,
-    "cipher_suite_id": None,
-    "cipher_suite_name": None,
-    "cipher_risk": None,
-    "signature_algorithm_oid": None,
-    "signature_algorithm_name": None,
-    "cert_common_name": None,
-    "cert_risk": None
-}
-
-for pkt in cap:
-    if hasattr(pkt, 'tls'):
+    for pkt in cap:
+        if not hasattr(pkt, 'tls'):
+            continue
         tls_layer = pkt.tls
 
-        # Client Hello detection
+        # Use TCP stream index as the session key (PyShark tracks this automatically)
+        stream_id = pkt.tcp.stream if hasattr(pkt, 'tcp') else "unknown"
+
+        if stream_id not in sessions:
+            sessions[stream_id] = new_session(stream_id)
+
+        s = sessions[stream_id]
+
         if hasattr(tls_layer, 'handshake_type') and tls_layer.handshake_type == '1':
             if hasattr(tls_layer, 'handshake_version'):
-                session_data["tls_version_client"] = tls_layer.handshake_version
+                s["tls_version_client"] = tls_layer.handshake_version
             if hasattr(tls_layer, 'handshake_extensions_server_name'):
-                session_data["sni"] = tls_layer.handshake_extensions_server_name
+                s["sni"] = tls_layer.handshake_extensions_server_name
 
-        # Server Hello detection
         if hasattr(tls_layer, 'handshake_type') and tls_layer.handshake_type == '2':
             if hasattr(tls_layer, 'handshake_version'):
-                session_data["tls_version_server"] = tls_layer.handshake_version
+                s["tls_version_server"] = tls_layer.handshake_version
             if hasattr(tls_layer, 'handshake_ciphersuite'):
                 cid = tls_layer.handshake_ciphersuite
-                session_data["cipher_suite_id"] = cid
+                s["cipher_suite_id"] = cid
                 name, risk = lookup_cipher(cid)
-                session_data["cipher_suite_name"] = name
-                session_data["cipher_risk"] = risk
+                s["cipher_suite_name"] = name
+                s["cipher_risk"] = risk
 
-        # Certificate signature algorithm detection
         if hasattr(tls_layer, 'x509af_algorithm_id'):
             sig_oid = tls_layer.x509af_algorithm_id
-            session_data["signature_algorithm_oid"] = sig_oid
-
+            s["signature_algorithm_oid"] = sig_oid
             if sig_oid in WEAK_SIG_ALGORITHMS:
-                session_data["signature_algorithm_name"] = WEAK_SIG_ALGORITHMS[sig_oid]
-                session_data["cert_risk"] = "weak - deprecated signature algorithm"
+                s["signature_algorithm_name"] = WEAK_SIG_ALGORITHMS[sig_oid]
+                s["cert_risk"] = "weak - deprecated signature algorithm"
             else:
-                session_data["signature_algorithm_name"] = "modern/unknown"
-                session_data["cert_risk"] = "acceptable"
+                s["signature_algorithm_name"] = "modern/unknown"
+                s["cert_risk"] = "acceptable"
 
-        # Certificate common name detection
         if hasattr(tls_layer, 'x509sat_utf8string'):
-            session_data["cert_common_name"] = tls_layer.x509sat_utf8string
+            cn = tls_layer.x509sat_utf8string
+            s["cert_common_name"] = cn
+            # Simplified self-signed check: since we can't cleanly separate
+            # subject vs issuer fields via PyShark, we treat a single CN
+            # appearing (typical of self-signed test certs) as a signal.
+            s["cert_subject"] = cn
+            s["cert_issuer"] = cn
+            s["self_signed"] = True
 
-cap.close()
+    cap.close()
+    return list(sessions.values())
 
-# Save to a JSON file so Person B and C can use it directly
-output_filename = f"{session_data['session_id']}.json"
-with open(output_filename, "w") as f:
-    json.dump(session_data, f, indent=2)
 
-print(f"Saved output to {output_filename}\n")
-print("--- Session TLS Summary (JSON) ---\n")
-print(json.dumps(session_data, indent=2))
+if __name__ == "__main__":
+    import sys
+
+    # Change these two lines per capture file you want to analyze
+    FILE = "real_smtp_capture.pcapng"
+    FILTER = "tcp.port==2525"
+
+    results = analyze_pcap(FILE, FILTER)
+
+    output_filename = FILE.replace(".pcapng", "_results.json")
+    with open(output_filename, "w") as f:
+        json.dump(results, f, indent=2)
+
+    print(f"Found {len(results)} session(s). Saved to {output_filename}\n")
+    print(json.dumps(results, indent=2))

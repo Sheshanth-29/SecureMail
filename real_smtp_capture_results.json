@@ -1,0 +1,19 @@
+[
+  {
+    "session_id": "sess_500",
+    "protocol": "TLS-Test",
+    "sni": "sandbox.smtp.mailtrap.io",
+    "tls_version_client": "0x0303",
+    "tls_version_server": "0x0303",
+    "cipher_suite_id": "0x1302",
+    "cipher_suite_name": "TLS_AES_256_GCM_SHA384",
+    "cipher_risk": "strong",
+    "signature_algorithm_oid": null,
+    "signature_algorithm_name": null,
+    "cert_common_name": null,
+    "cert_risk": null,
+    "cert_subject": null,
+    "cert_issuer": null,
+    "self_signed": null
+  }
+]
